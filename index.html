@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TDS Project 2 </title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    .container { max-width: 800px; margin: auto; }
+    .header { text-align: center; margin-bottom: 20px; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; }
+    input[type="file"] { display: block; margin-bottom: 10px; }
+    button { margin-right: 10px; padding: 6px 12px; }
+    .results { margin-top: 20px; }
+    pre { background: #f0f0f0; padding: 10px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>TDS Project 2 </h1>
+      <p>Upload your questions file and optional dataset to get answers</p>
+    </div>
+
+    <form id="analysisForm">
+      <div class="form-group">
+        <label for="questions_file">Questions File (.txt) *</label>
+        <input type="file" id="questions_file" name="questions_file" accept=".txt"/>
+        <div id="questionsInfo"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="data_file">Upload Dataset (Optional)</label>
+        <input type="file" id="data_file" name="data_file" accept=".csv,.xlsx,.xls,.json,.parquet,.txt"/>
+        <div id="dataInfo"></div>
+      </div>
+
+      <button type="submit" id="submitBtn">Analyze Data</button>
+      <button type="button" id="clearBtn">Clear</button>
+    </form>
+
+    <div id="loading" style="display:none; margin-top:15px;">Analyzing your data...</div>
+
+    <div class="results" id="results" style="display:none;">
+      <h3>Analysis Results</h3>
+      <div id="resultsContent"></div>
+    </div>
+  </div>
+
+  <script>
+    function renderAnswerInto(answer, container) {
+      const text = (answer && typeof answer === 'object') ? JSON.stringify(answer, null, 2) : String(answer ?? '');
+      if (text.includes('\n') || text.length > 120) {
+        const pre = document.createElement('pre');
+        pre.textContent = text;
+        container.appendChild(pre);
+      } else {
+        container.textContent = text;
+      }
+    }
+
+    class DataAnalystApp {
+      constructor() {
+        this.form = document.getElementById('analysisForm');
+        this.qFileInput = document.getElementById('questions_file');
+        this.dFileInput = document.getElementById('data_file');
+        this.qInfo = document.getElementById('questionsInfo');
+        this.dInfo = document.getElementById('dataInfo');
+        this.submitBtn = document.getElementById('submitBtn');
+        this.clearBtn = document.getElementById('clearBtn');
+        this.loading = document.getElementById('loading');
+        this.results = document.getElementById('results');
+        this.resultsContent = document.getElementById('resultsContent');
+        this.initEventListeners();
+      }
+
+      initEventListeners() {
+        this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+        this.clearBtn.addEventListener('click', () => this.clearForm());
+        this.qFileInput.addEventListener('change', (e) => this.handleFileSelect(e, 'q'));
+        this.dFileInput.addEventListener('change', (e) => this.handleFileSelect(e, 'd'));
+      }
+
+      handleFileSelect(event, type) {
+        const file = event.target.files[0];
+        if (type === 'q') {
+          this.qInfo.textContent = file ? `Questions: ${file.name} (${(file.size/1024).toFixed(2)} KB)` : '';
+        } else {
+          this.dInfo.textContent = file ? `Dataset: ${file.name} (${(file.size/1024).toFixed(2)} KB)` : '';
+        }
+      }
+
+      async handleSubmit(event) {
+        event.preventDefault();
+        if (!this.qFileInput.files[0]) { alert('Please upload your questions .txt file.'); return; }
+        this.showLoading(); this.hideResults();
+
+        try {
+          const formData = new FormData();
+          formData.append('questions_file', this.qFileInput.files[0]);
+          if (this.dFileInput.files[0]) formData.append('data_file', this.dFileInput.files[0]);
+
+          const response = await fetch('/api', { method:'POST', body:formData });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const data = await response.json();
+          this.displayResults(data);
+        } catch (err) {
+          this.displayError(err.message || 'Unknown error');
+        } finally {
+          this.hideLoading();
+        }
+      }
+
+      displayResults(data) {
+        this.resultsContent.innerHTML = '';
+        if (data.error) { this.displayError(data.error); return; }
+        Object.entries(data).forEach(([question, answer]) => {
+          const item = document.createElement('div');
+          const qDiv = document.createElement('div');
+          qDiv.textContent = question;
+          const aDiv = document.createElement('div');
+          renderAnswerInto(answer, aDiv);
+          item.appendChild(qDiv); item.appendChild(aDiv);
+          this.resultsContent.appendChild(item);
+        });
+        this.showResults();
+      }
+
+      displayError(message) {
+        this.resultsContent.innerHTML = `<div><strong>Error:</strong> ${message}</div>`;
+        this.showResults();
+      }
+
+      showLoading() { this.loading.style.display = 'block'; this.submitBtn.disabled = true; }
+      hideLoading() { this.loading.style.display = 'none'; this.submitBtn.disabled = false; }
+      showResults() { this.results.style.display = 'block'; }
+      hideResults() { this.results.style.display = 'none'; }
+      clearForm() {
+        this.qFileInput.value = '';
+        this.dFileInput.value = '';
+        this.qInfo.textContent = '';
+        this.dInfo.textContent = '';
+        this.hideResults(); this.hideLoading();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => { new DataAnalystApp(); });
+  </script>
+</body>
+</html>
+
