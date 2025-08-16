@@ -25,8 +25,8 @@ COPY start.sh .
 # Copy environment file if it exists
 COPY .env* ./
 
-# Make entrypoint script executable
-RUN chmod +x entrypoint.sh
+# Make start script executable
+RUN chmod +x start.sh
 
 # Expose the port the app runs on
 EXPOSE 8000
